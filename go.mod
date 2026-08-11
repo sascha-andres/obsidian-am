@@ -1,6 +1,6 @@
 module github.com/sascha-andres/obsidian-utils
 
-go 1.25.0
+go 1.26
 
 require (
 	github.com/adrg/frontmatter v0.2.0
