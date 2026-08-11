@@ -104,7 +104,7 @@ func run(_ context.Context) error {
 		return nil
 	}
 
-	return os.WriteFile(resultingFile, newFileData, 0640)
+	return os.WriteFile(resultingFile, newFileData, 0600)
 }
 
 func addBulletpoint(data []byte, bulletPoint, after string) ([]byte, error) {
