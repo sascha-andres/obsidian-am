@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"errors"
+	f "flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -61,10 +62,10 @@ type (
 )
 
 var (
-	folder, forDate, dailyFolder, templateFile string
-	defaultWorkLocation                        = "Office"
-	logLevel                                   string
-	printConfig, overwrite                     bool
+	folder, forDate, until, dailyFolder, templateFile string
+	defaultWorkLocation                               = "Office"
+	logLevel                                          string
+	printConfig, overwrite                            bool
 )
 
 //go:embed DNote.md
@@ -82,6 +83,7 @@ func init() {
 	flag.BoolVar(&printConfig, "print-config", false, "print configuration")
 	flag.BoolVar(&overwrite, "overwrite", false, "overwrite existing file")
 	flag.StringVar(&forDate, "for-date", time.Now().Format(time.DateOnly), "date for which to create the daily note (2006-01-02)")
+	flag.StringVar(&until, "until", "", "date until which to create daily notes, starting today (2006-01-02 or +N offset); mutually exclusive with -for-date")
 }
 
 // main is the entry point of the program.
@@ -94,6 +96,37 @@ func main() {
 		logger.Error("error running daily", "err", err)
 		os.Exit(1)
 	}
+}
+
+// resolveDateArg resolves a date argument that is either an absolute date (2006-01-02) or an
+// offset relative to today expressed as +N or -N days.
+func resolveDateArg(raw string) (string, error) {
+	if relativeString, ok := strings.CutPrefix(raw, "-"); ok {
+		offset, err := strconv.Atoi(relativeString)
+		if err != nil {
+			return "", err
+		}
+		return time.Now().AddDate(0, 0, offset*-1).Format(time.DateOnly), nil
+	}
+	if relativeString, ok := strings.CutPrefix(raw, "+"); ok {
+		offset, err := strconv.Atoi(relativeString)
+		if err != nil {
+			return "", err
+		}
+		return time.Now().AddDate(0, 0, offset).Format(time.DateOnly), nil
+	}
+	return raw, nil
+}
+
+// explicitlySet reports whether the named flag was actually passed on the command line.
+func explicitlySet(name string) bool {
+	set := false
+	flag.Visit(func(fl *f.Flag) {
+		if fl.Name == name {
+			set = true
+		}
+	})
+	return set
 }
 
 // run initializes and executes the daily note creation process based on specified folder paths, date, and template configuration.
@@ -110,28 +143,46 @@ func run(logger *slog.Logger) error {
 	if dailyFolder == "" {
 		return errors.New("-daily-folder must be non empty")
 	}
+	if until != "" && explicitlySet("for-date") {
+		return errors.New("-for-date and -until are mutually exclusive")
+	}
 	if forDate == "" {
 		forDate = time.Now().Format(time.DateOnly)
 	}
-	if strings.HasPrefix(forDate, "-") {
-		relativeString := strings.TrimPrefix(forDate, "-")
-		offset, err := strconv.Atoi(relativeString)
-		if err != nil {
-			return err
-		}
-		forDate = time.Now().AddDate(0, 0, offset*-1).Format(time.DateOnly)
-	}
-	if strings.HasPrefix(forDate, "+") {
-		logger.Info("creating daily note for relative date", "for-date", forDate)
-		relativeString := strings.TrimPrefix(forDate, "+")
-		offset, err := strconv.Atoi(relativeString)
-		if err != nil {
-			return err
-		}
-		forDate = time.Now().AddDate(0, 0, offset).Format(time.DateOnly)
+	forDate, err = resolveDateArg(forDate)
+	if err != nil {
+		return err
 	}
 
 	folder = path.Join(folder, dailyFolder)
+
+	if until != "" {
+		resolvedUntil, err := resolveDateArg(until)
+		if err != nil {
+			return err
+		}
+		untilTime, err := time.Parse("2006-01-02", resolvedUntil)
+		if err != nil {
+			return err
+		}
+		today := time.Now().Truncate(24 * time.Hour)
+		if untilTime.Before(today) {
+			return errors.New("-until must be a date in the future")
+		}
+
+		if printConfig {
+			logger.Info("daily notes folder", "folder", folder)
+			logger.Info("date range", "from", today.Format(time.DateOnly), "until", untilTime.Format(time.DateOnly))
+			return nil
+		}
+
+		for t := today; !t.After(untilTime); t = t.AddDate(0, 0, 1) {
+			if err := createDailyNote(logger, folder, t); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 
 	if printConfig {
 		logger.Info("daily notes folder", "folder", folder)
@@ -144,6 +195,11 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
+	return createDailyNote(logger, folder, t)
+}
+
+// createDailyNote creates the daily note file for the given date inside folder, unless it already exists (or -overwrite is set).
+func createDailyNote(logger *slog.Logger, folder string, t time.Time) error {
 	resultingDirectory := path.Join(folder, t.Format("2006/01"))
 	resultingFile := path.Join(folder, fmt.Sprintf("%s.md", t.Format("2006/01/2006-01-02")))
 
@@ -161,7 +217,7 @@ func run(logger *slog.Logger) error {
 
 	logger.Info("creating file", "file", resultingFile)
 
-	tpl, err := executeTemplate(logger, t, err)
+	tpl, err := executeTemplate(logger, t, nil)
 	if err != nil {
 		return err
 	}

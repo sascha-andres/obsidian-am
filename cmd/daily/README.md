@@ -18,6 +18,7 @@ activities, health metrics, tasks, and more. The notes are organized in a year/m
 | `-print-config`  | Print configuration                                              | `false`             |
 | `-overwrite`     | Overwrite existing file                                          | `false`             |
 | `-for-date`      | Date for which to create the daily note (yyyy-MM-dd or +-offset) | Current date        |
+| `-until`         | Create daily notes for every day from today until this date (yyyy-MM-dd or +N offset), inclusive. Mutually exclusive with `-for-date` | (none) |
 
 ## Usage
 
@@ -37,6 +38,18 @@ For yesterday:
 
 ```bash
 daily -folder /path/to/vault -daily-folder "Daily Notes" -for-date -1
+```
+
+To create daily notes for the rest of the week, starting today:
+
+```bash
+daily -folder /path/to/vault -daily-folder "Daily Notes" -until +6
+```
+
+To create daily notes up to and including a specific future date:
+
+```bash
+daily -folder /path/to/vault -daily-folder "Daily Notes" -until 2023-09-30
 ```
 
 To use a custom template:
