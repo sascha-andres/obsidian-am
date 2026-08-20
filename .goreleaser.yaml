@@ -1,0 +1,130 @@
+version: 2
+
+project_name: obsidian-utils
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: am
+    main: ./cmd/am
+    binary: am
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+  - id: backfill
+    main: ./cmd/backfill
+    binary: backfill
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+  - id: daily
+    main: ./cmd/daily
+    binary: daily
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+  - id: ggl
+    main: ./cmd/ggl
+    binary: ggl
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+  - id: ical
+    main: ./cmd/ical
+    binary: ical
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+  - id: jrnl
+    main: ./cmd/jrnl
+    binary: jrnl
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+  - id: obs-fm
+    main: ./cmd/obs-fm
+    binary: obs-fm
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - name_template: >-
+      {{ .ProjectName }}_{{ .Os }}_{{ .Arch }}
+    formats:
+      - tar.gz
+
+checksum:
+  name_template: 'checksums.txt'
+
+brews:
+  - name: obsidian-utils
+    repository:
+      owner: sascha-andres
+      name: homebrew-tap
+      branch: main
+      git:
+        url: 'ssh://git@github.com/sascha-andres/homebrew-tap.git'
+        private_key: '{{ .Env.HOMEBREW_TAP_DEPLOY_KEY }}'
+    directory: Formula
+    homepage: "https://github.com/sascha-andres/obsidian-utils"
+    description: "Collection of CLI utilities for managing an Obsidian vault"
+    install: |
+      bin.install "am"
+      bin.install "backfill"
+      bin.install "daily"
+      bin.install "ggl"
+      bin.install "ical"
+      bin.install "jrnl"
+      bin.install "obs-fm"
+    test: |
+      %w[am backfill daily ggl ical jrnl obs-fm].each do |b|
+        assert_predicate bin/b, :exist?
+      end
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
