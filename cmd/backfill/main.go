@@ -16,22 +16,20 @@ import (
 	"github.com/sascha-andres/obsidian-utils/internal"
 )
 
-// weightKey is the frontmatter key holding the daily weight entry.
-const weightKey = "weight"
-
 var (
-	folder, dailyFolder, startDateFlag, logLevel string
-	printConfig, dryRun                          bool
+	folder, dailyFolder, startDateFlag, logLevel, frontmatterKey string
+	printConfig, dryRun                                          bool
 )
 
 // init initializes the package by setting up flag options, log flags, and prefix.
 func init() {
 	internal.AddCommonFlagPrefixes()
-	flag.SetEnvPrefix("OBS_UTIL_WEIGHT")
+	flag.SetEnvPrefix("OBS_UTIL_BACKFILL")
 	flag.StringVar(&logLevel, "log-level", "info", "log level")
 	flag.StringVar(&folder, "folder", "", "base path to obsidian vault")
 	flag.StringVar(&dailyFolder, "daily-folder", "", "where the daily notes are stored inside the vault")
 	flag.StringVar(&startDateFlag, "start-date", "", "lowest date to start scanning from (2006-01-02)")
+	flag.StringVar(&frontmatterKey, "frontmatter-key", "", "frontmatter key to backfill")
 	flag.BoolVar(&printConfig, "print-config", false, "print configuration")
 	flag.BoolVar(&dryRun, "dry-run", false, "do not write files, only log what would change")
 }
@@ -41,14 +39,14 @@ func main() {
 	flag.Parse()
 	internal.PrintFlags()
 
-	logger := internal.CreateLogger(logLevel, "OBS_UTIL_WEIGHT")
+	logger := internal.CreateLogger(logLevel, "OBS_UTIL_BACKFILL")
 	if err := run(logger); err != nil {
-		logger.Error("error running weight-tool", "err", err)
+		logger.Error("error running backfill", "err", err)
 		os.Exit(1)
 	}
 }
 
-// run scans daily notes from -start-date up to today and forward-fills zero/missing weight entries.
+// run scans daily notes from -start-date up to today and forward-fills zero/missing entries for -frontmatter-key.
 func run(logger *slog.Logger) error {
 	if folder == "" {
 		return errors.New("-folder must be non empty")
@@ -62,6 +60,9 @@ func run(logger *slog.Logger) error {
 	}
 	if startDateFlag == "" {
 		return errors.New("-start-date must be non empty")
+	}
+	if frontmatterKey == "" {
+		return errors.New("-frontmatter-key must be non empty")
 	}
 
 	startDate, err := time.Parse(time.DateOnly, startDateFlag)
@@ -77,6 +78,7 @@ func run(logger *slog.Logger) error {
 		logger.Info("folder", "folder", resolvedFolder)
 		logger.Info("daily-folder", "daily-folder", dailyFolder)
 		logger.Info("start-date", "start-date", startDate.Format(time.DateOnly))
+		logger.Info("frontmatter-key", "frontmatter-key", frontmatterKey)
 		return nil
 	}
 
@@ -106,24 +108,24 @@ func run(logger *slog.Logger) error {
 
 		scanned++
 		processor := obsidianutils.NewSimpleFrontmatterProcessor(notePath)
-		value, getErr := processor.GetValue(weightKey)
+		value, getErr := processor.GetValue(frontmatterKey)
 		present := getErr == nil
 
-		isZero, ok := isZeroWeight(value, present)
+		isZero, ok := isZeroValue(value, present)
 		if !ok {
-			logger.Warn("could not interpret weight value, skipping", "file", notePath, "value", value)
+			logger.Warn("could not interpret value, skipping", "file", notePath, "value", value)
 			continue
 		}
 
 		if !isZero {
 			memoized = value
 			haveMemoized = true
-			logger.Debug("memorized weight", "file", notePath, "value", value)
+			logger.Debug("memorized value", "file", notePath, "value", value)
 			continue
 		}
 
 		if !haveMemoized {
-			logger.Debug("zero weight and nothing memorized yet, leaving as is", "file", notePath)
+			logger.Debug("zero value and nothing memorized yet, leaving as is", "file", notePath)
 			continue
 		}
 
@@ -132,13 +134,13 @@ func run(logger *slog.Logger) error {
 			continue
 		}
 
-		logger.Debug("backfilling weight", "file", notePath, "old", value, "new", memoized)
+		logger.Debug("backfilling value", "file", notePath, "old", value, "new", memoized)
 		if dryRun {
 			updated++
 			continue
 		}
 
-		if err := processor.SetValue(weightKey, memoized); err != nil {
+		if err := processor.SetValue(frontmatterKey, memoized); err != nil {
 			return err
 		}
 		doc, err := processor.GenerateMarkDownDocument()
@@ -155,11 +157,11 @@ func run(logger *slog.Logger) error {
 	return nil
 }
 
-// isZeroWeight determines whether a frontmatter weight value counts as zero.
+// isZeroValue determines whether a frontmatter value counts as zero.
 // A missing key (present == false) is treated as zero. ok is false when the
 // value's type or content can't be safely interpreted as a number, in which
 // case the caller should skip the file rather than guess.
-func isZeroWeight(value any, present bool) (isZero bool, ok bool) {
+func isZeroValue(value any, present bool) (isZero bool, ok bool) {
 	if !present {
 		return true, true
 	}

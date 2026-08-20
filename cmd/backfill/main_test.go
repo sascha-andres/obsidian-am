@@ -2,7 +2,7 @@ package main
 
 import "testing"
 
-func TestIsZeroWeight(t *testing.T) {
+func TestIsZeroValue(t *testing.T) {
 	tests := []struct {
 		name       string
 		value      any
@@ -25,12 +25,12 @@ func TestIsZeroWeight(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotIsZero, gotOk := isZeroWeight(tt.value, tt.present)
+			gotIsZero, gotOk := isZeroValue(tt.value, tt.present)
 			if gotOk != tt.wantOk {
-				t.Fatalf("isZeroWeight(%v, %v) ok = %v, want %v", tt.value, tt.present, gotOk, tt.wantOk)
+				t.Fatalf("isZeroValue(%v, %v) ok = %v, want %v", tt.value, tt.present, gotOk, tt.wantOk)
 			}
 			if gotOk && gotIsZero != tt.wantIsZero {
-				t.Fatalf("isZeroWeight(%v, %v) isZero = %v, want %v", tt.value, tt.present, gotIsZero, tt.wantIsZero)
+				t.Fatalf("isZeroValue(%v, %v) isZero = %v, want %v", tt.value, tt.present, gotIsZero, tt.wantIsZero)
 			}
 		})
 	}
